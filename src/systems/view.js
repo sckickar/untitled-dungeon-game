@@ -1,5 +1,7 @@
-import { MW, iso, ri, smoothDamp } from '../core/constants.js';
+import { MW, iso, ri } from '../core/constants.js';
 import { txt } from '../gfx/fonts.js';
+
+const DZX = 16, DZY = 8;
 
 export const view = {
   updateCutaway() {
@@ -21,9 +23,20 @@ export const view = {
 
   updateCamera(dt) {
     const sp = iso(this.p.x, this.p.y), tx = sp.x - 64, ty = sp.y - 70;
-    this.camX = smoothDamp(this.camX, tx, this.camV, 'x', 0.11, dt);
-    this.camY = smoothDamp(this.camY, ty, this.camV, 'y', 0.11, dt);
-    let sx = Math.round(sp.x) - Math.round(sp.x - this.camX), sy = Math.round(sp.y) - Math.round(sp.y - this.camY);
+    const ox = this.camX, oy = this.camY;
+    this.camX = Math.min(Math.max(ox, tx - DZX), tx + DZX);
+    this.camY = Math.min(Math.max(oy, ty - DZY), ty + DZY);
+    const mx = this.camX - ox, my = this.camY - oy;
+    const v = this.camV, k = Math.min(1, dt * 8);
+    v.x += (mx - v.x) * k;
+    v.y += (my - v.y) * k;
+    const cx = this.camX, cy = this.camY, ax = Math.abs(v.x), ay = Math.abs(v.y), S = this.camS;
+    let sx, sy;
+    if (ax >= ay) { sx = Math.round(cx); sy = Math.round(cy + (ax > 1e-4 ? v.y / v.x : 0) * (sx - cx)); }
+    else { sy = Math.round(cy); sx = Math.round(cx + (ay > 1e-4 ? v.x / v.y : 0) * (sy - cy)); }
+    if (mx > 0) sx = Math.max(sx, S.x); else if (mx < 0) sx = Math.min(sx, S.x);
+    if (my > 0) sy = Math.max(sy, S.y); else if (my < 0) sy = Math.min(sy, S.y);
+    S.x = sx; S.y = sy;
     if (this.shakeT > 0) { this.shakeT -= dt; sx += ri(-this.shakeA, this.shakeA); sy += ri(-this.shakeA, this.shakeA); }
     this.cameras.main.setScroll(sx, sy);
   },

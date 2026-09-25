@@ -27,7 +27,7 @@ export class Game extends Phaser.Scene {
     this.populate();
     this.setupInput();
     this.computeFlow();
-    const p = iso(this.p.x, this.p.y); this.camX = p.x - 64; this.camY = p.y - 70; this.camV = { x: 0, y: 0 };
+    const p = iso(this.p.x, this.p.y); this.camX = p.x - 64; this.camY = p.y - 70; this.camV = { x: 0, y: 0 }; this.camS = { x: Math.round(this.camX), y: Math.round(this.camY) };
     this.glyphs = {}; for (const c of 'mcw') this.glyphs[c] = this.make.bitmapText({ font: 'font_' + c, text: 'x', size: 8 }, false);
     this.swordStamp = this.make.image({ key: 'sword' }, false).setOrigin(0.15, 0.5);
     if (!this.scene.isActive('ui')) this.scene.launch('ui');

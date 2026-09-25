@@ -15,9 +15,11 @@ const game = new Phaser.Game({
   scene: [Boot, Title, Game, UI],
 });
 
+const MAX_ZOOM = 4;
+
 function fit() {
-  const s = Math.max(1, Math.floor(Math.min(window.innerWidth, window.innerHeight) / VH));
-  game.scale.setZoom(4);
+  const s = Math.floor(Math.min(window.innerWidth, window.innerHeight) / VH);
+  game.scale.setZoom(Math.max(1, Math.min(MAX_ZOOM, s)));
 }
 
 window.addEventListener('resize', fit);
