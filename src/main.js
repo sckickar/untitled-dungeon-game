@@ -1,4 +1,4 @@
-import { VW, VH } from './core/constants.js';
+import { VW, VH, MAX_ZOOM } from './core/constants.js';
 import { Boot } from './scenes/Boot.js';
 import { Title } from './scenes/Title.js';
 import { Game } from './scenes/Game.js';
@@ -14,8 +14,6 @@ const game = new Phaser.Game({
   scale: { mode: Phaser.Scale.NONE, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: [Boot, Title, Game, UI],
 });
-
-const MAX_ZOOM = 4;
 
 function fit() {
   const s = Math.floor(Math.min(window.innerWidth, window.innerHeight) / VH);

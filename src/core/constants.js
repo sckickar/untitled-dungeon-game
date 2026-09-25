@@ -9,6 +9,8 @@ export const MW = 44,
 export const OX = MH * 8 + 16,
   OY = 16;
 
+export const MAX_ZOOM = 4;
+
 export const iso = (x, y) => ({ x: (x - y) * 8 + OX, y: (x + y) * 4 + OY });
 export const unIso = (sx, sy) => {
   const a = (sx - OX) / 8,
