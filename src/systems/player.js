@@ -1,5 +1,7 @@
 import { MW, iso, unIso, rnd, ri, pick, norm } from "../core/constants.js";
 import { PF } from "../data/sheets.js";
+import { WDEF, ELEMENTS } from "../data/items.js";
+import { hitSlot } from "../data/layout.js";
 import { OUTLINE } from "./outline.js";
 
 export const player = {
@@ -17,7 +19,6 @@ export const player = {
         xp: 0,
         next: 10,
         gold: 0,
-        potions: 1,
         kills: 0,
       },
       c || {},
@@ -28,8 +29,16 @@ export const player = {
         kx: 0,
         ky: 0,
         face: norm(1, 1),
-        cd: 0,
-        bcd: 0,
+        cds: {
+          main: 0,
+          off: 0,
+        },
+        blocking: false,
+        flameT: 0,
+        useT: { main: 0, off: 0 },
+        channeling: false,
+        castT: 0,
+        offSwingT: 0,
         inv: 0,
         atkT: 0,
         bloody: 0,
@@ -46,9 +55,18 @@ export const player = {
       },
     );
     this.p.spr = this.add.sprite(0, 0, "player", PF.front).setOrigin(0.5, 1);
-    this.p.sword = this.add.image(0, 0, "sword").setOrigin(0.15, 0.5);
+    this.p.hand = {
+      main: this.add.image(0, 0, "sword").setOrigin(0.15, 0.5),
+      off: this.add.image(0, 0, "sword").setOrigin(0.15, 0.5),
+    };
     this.p.swordAng = Math.atan2(1, 0) + 1.3;
-    this.addOutline(this.p.spr, OUTLINE.player)
+    if (!c) {
+      this.p.equip = { main: this.makeItem("sword"), off: null };
+      this.p.bag = Array(21).fill(null);
+      this.p.bag[0] = { base: "potion", qty: 1 };
+    }
+    this.refreshHands();
+    this.addOutline(this.p.spr, OUTLINE.player);
   },
 
   stats() {
@@ -63,14 +81,15 @@ export const player = {
       xp: p.xp,
       next: p.next,
       gold: p.gold,
-      potions: p.potions,
+      equip: structuredClone(p.equip),
+      bag: structuredClone(p.bag),
       kills: p.kills,
     };
   },
 
   setupInput() {
     this.keys = this.input.keyboard.addKeys(
-      "W,A,S,D,UP,DOWN,LEFT,RIGHT,Z,X,J,K,Q,E,R,SPACE,ENTER",
+      "W,A,S,D,UP,DOWN,LEFT,RIGHT,Z,X,J,K,Q,E,R,I,TAB,SPACE,ENTER",
     );
     if (this.input.mouse) this.input.mouse.disableContextMenu();
     this.input.on("pointerdown", (ptr) => {
@@ -80,13 +99,24 @@ export const player = {
         return;
       }
       if (this.p.dead || this.descending) return;
-      const w = ptr.positionToCamera(this.cameras.main),
-        t = unIso(w.x, w.y + 5);
-      const d = norm(t.x - this.p.x, t.y - this.p.y);
-      this.p.face = d;
-      if (ptr.rightButtonDown()) this.bolt(d);
-      else this.slash(d);
+      if (this.onInvPointerDown(ptr)) return;
+      if (this.invOpen) return;
+      this.p.face = this.aimAt(ptr);
+      if (ptr.rightButtonDown()) this.clickOff = true;
+      else this.clickMain = true;
     });
+    const up = (ptr) => {
+      this.ptrEaten = false;
+      if (this.drag) this.placeDrag(hitSlot(ptr.x, ptr.y, this.invOpen));
+    };
+    this.input.on("pointerup", up);
+    this.input.on("pointerupoutside", up);
+  },
+
+  aimAt(ptr) {
+    const w = ptr.positionToCamera(this.cameras.main),
+      t = unIso(w.x, w.y + 5);
+    return norm(t.x - this.p.x, t.y - this.p.y);
   },
 
   restartGame() {
@@ -104,8 +134,11 @@ export const player = {
     const p = this.p,
       k = this.keys,
       JD = Phaser.Input.Keyboard.JustDown;
-    p.cd -= dt;
-    p.bcd -= dt;
+    p.cds.main -= dt;
+    p.cds.off -= dt;
+    p.useT.main -= dt;
+    p.useT.off -= dt;
+    p.castT -= dt;
     p.inv -= dt;
     p.atkT -= dt;
     let mx = 0,
@@ -142,7 +175,8 @@ export const player = {
       my /= l;
       p.face = { x: mx, y: my };
     }
-    const spd = 3.1 * (p.atkT > 0 ? 0.4 : 1);
+    const spd =
+      3.1 * (p.atkT > 0 ? 0.4 : 1) * (p.blocking || p.channeling ? 0.5 : 1);
     const ox = p.x,
       oy = p.y;
     p.x += (mx * spd + p.kx) * dt;
@@ -152,12 +186,36 @@ export const player = {
     p.ky *= dec;
     this.resolve(p);
 
-    if (!this.descending) {
-      if (JD(k.Z) || JD(k.J) || JD(k.SPACE) || this.touchA) this.slash(p.face);
-      if (JD(k.X) || JD(k.K) || this.touchB) this.bolt(p.face);
+    p.blocking = p.channeling = false;
+    if (!this.descending && !this.invOpen) {
+      const ptr = this.input.activePointer,
+        mouse = !ptr.wasTouch && ptr.isDown && !this.drag && !this.ptrEaten;
+      const zj = JD(k.Z) || JD(k.J) || JD(k.SPACE),
+        xk = JD(k.X) || JD(k.K);
+      const held = {
+        main:
+          (mouse && ptr.leftButtonDown()) ||
+          k.Z.isDown ||
+          k.J.isDown ||
+          k.SPACE.isDown ||
+          this.touchAHeld,
+        off:
+          (mouse && ptr.rightButtonDown()) ||
+          k.X.isDown ||
+          k.K.isDown ||
+          this.touchBHeld,
+      };
+      const pressed = {
+        main: this.clickMain || zj || this.touchA,
+        off: this.clickOff || xk || this.touchB,
+      };
+      if (mouse && (held.main || held.off)) p.face = this.aimAt(ptr);
+      this.useSlot("main", pressed.main, held.main, p.face, dt);
+      this.useSlot("off", pressed.off, held.off, p.face, dt);
       if (JD(k.Q) || this.touchP) this.drink();
     }
     this.touchA = this.touchB = this.touchP = false;
+    this.clickMain = this.clickOff = false;
 
     p.mpT += dt;
     if (p.mpT > 2.5) {
@@ -212,44 +270,149 @@ export const player = {
       .setDepth(p.x + p.y);
     const vis = !(p.inv > 0 && Math.floor(p.inv * 20) % 2 === 0);
     p.spr.setVisible(vis);
-    this.syncOutline(p.spr)
+    this.syncOutline(p.spr);
 
     const aim = Math.atan2(sy * 0.5, sx);
+    this.drawMain(sp, aim, front, moving, vis, dt);
+    this.drawOff(sp, aim, front, vis, dt);
+    // let ang;
+    // if (p.swingT > 0) {
+    //   p.swingT -= dt;
+    //   const t = Phaser.Math.Clamp(1 - p.swingT / 0.13, 0, 1),
+    //     e = 1 - Math.pow(1 - t, 3);
+    //   ang = p.swingAim + p.swingFrom * 1.9 * (1 - 2 * e);
+    //   p.swordAng = ang;
+    // } else {
+    //   const target =
+    //     aim +
+    //     p.rest * 1.25 +
+    //     (moving ? Math.sin(this.time.now / 90) * 0.12 : 0);
+    //   p.swordAng +=
+    //     Phaser.Math.Angle.Wrap(target - p.swordAng) * Math.min(1, dt * 14);
+    //   ang = p.swordAng;
+    // }
+    // const hx = sp.x + Math.round(Math.cos(aim) * 2),
+    //   hy = sp.y - 2 + Math.round(Math.sin(aim));
+    // p.sword
+    //   .setPosition(hx, hy)
+    //   .setRotation(ang)
+    //   .setVisible(vis)
+    //   .setDepth(p.x + p.y + (Math.sin(ang) > -0.15 ? 0.02 : -0.02));
+  },
+
+  drawMain(sp, aim, front, moving, vis, dt) {
+    const p = this.p,
+      h = p.hand.main,
+      it = p.equip.main;
+    if (!it) return h.setVisible(false);
+    if (WDEF[it.base].back && p.useT.main <= 0)
+      return this.drawSlung(h, it, sp, "main", front, vis);
     let ang;
-    if (p.swingT > 0) {
-      p.swingT -= dt;
-      const t = Phaser.Math.Clamp(1 - p.swingT / 0.13, 0, 1),
-        e = 1 - Math.pow(1 - t, 3);
-      ang = p.swingAim + p.swingFrom * 1.9 * (1 - 2 * e);
-      p.swordAng = ang;
+    if (WDEF[it.base].kind === "melee") {
+      if (p.swingT > 0) {
+        p.swingT -= dt;
+        const t = Phaser.Math.Clamp(1 - p.swingT / 0.13, 0, 1),
+          e = 1 - Math.pow(1 - t, 3);
+        ang = p.swingAim + p.swingFrom * 1.9 * (1 - 2 * e);
+        p.swordAng = ang;
+      } else {
+        const target =
+          aim +
+          p.rest * 1.25 +
+          (moving ? Math.sin(this.time.now / 90) * 0.12 : 0);
+        p.swordAng +=
+          Phaser.Math.Angle.Wrap(target - p.swordAng) * Math.min(1, dt * 14);
+        ang = p.swordAng;
+      }
     } else {
-      const target =
-        aim +
-        p.rest * 1.25 +
-        (moving ? Math.sin(this.time.now / 90) * 0.12 : 0);
       p.swordAng +=
-        Phaser.Math.Angle.Wrap(target - p.swordAng) * Math.min(1, dt * 14);
+        Phaser.Math.Angle.Wrap(aim - p.swordAng) * Math.min(1, dt * 14);
       ang = p.swordAng;
     }
     const hx = sp.x + Math.round(Math.cos(aim) * 2),
       hy = sp.y - 2 + Math.round(Math.sin(aim));
-    p.sword
-      .setPosition(hx, hy)
+    h.setPosition(hx, hy)
       .setRotation(ang)
       .setVisible(vis)
-      .setDepth(p.x + p.y + (Math.sin(ang) > -0.15 ? 0.02 : -0.02));
+      .setDepth(
+        p.x +
+          p.y +
+          (WDEF[it.base].back
+            ? front
+              ? 0.03
+              : -0.03
+            : Math.sin(ang) > -0.15
+              ? 0.02
+              : -0.02),
+      );
   },
 
-  slash(dir) {
+  drawOff(sp, aim, front, vis, dt) {
+    const p = this.p,
+      h = p.hand.off,
+      it = p.equip.off;
+    if (!it) return h.setVisible(false);
+    if (WDEF[it.base].back && p.useT.off <= 0)
+      return this.drawSlung(h, it, sp, "off", front, vis);
+
+    const kind = WDEF[it.base].kind,
+      side = aim + 1.57;
+    let ox = Math.cos(side) * 3,
+      oy = Math.sin(side),
+      dz = Math.sin(side) > 0 ? 0.02 : -0.02,
+      ang;
+    if (p.offSwingT > 0) {
+      // offhand melee = quick thrust out and back
+      p.offSwingT -= dt;
+      const e = Math.sin(Math.PI * (1 - Math.max(0, p.offSwingT) / 0.13));
+      ox = Math.cos(aim) * (2 + 3 * e);
+      oy = Math.sin(aim) * (1 + 1.5 * e);
+      ang = aim;
+      dz = 0.03;
+    } else if (kind === "shield") {
+      ang = 0;
+      if (p.blocking) {
+        ox = Math.cos(aim) * 3;
+        oy = Math.sin(aim) * 1.5;
+        dz = front ? 0.03 : -0.03;
+      }
+    } else if (kind === "staff") ang = p.castT > 0 ? aim : -1.4;
+    else if (kind === "melee") ang = aim - 1.25;
+    else ang = aim; // bow
+    if (WDEF[it.base].back) dz = front ? 0.03 : -0.03;
+    h.setPosition(sp.x + Math.round(ox), sp.y - 2 + Math.round(oy))
+      .setRotation(ang)
+      .setFlipX(kind === "shield" && Math.cos(aim) < 0)
+      .setVisible(vis)
+      .setDepth(p.x + p.y + dz);
+  },
+
+  drawSlung(h, it, sp, slot, front, vis) {
+    const p = this.p,
+      flip = p.spr.flipX ? -1 : 1,
+      side = slot === "main" ? -1 : 1,
+      rot = WDEF[it.base].backRot * flip * side;
+    h.setPosition(sp.x + side * flip, sp.y - 4)
+      .setRotation(rot)
+      .setFlipX(false)
+      .setVisible(vis)
+      .setDepth(p.x + p.y + (front ? -0.03 : 0.03));
+    if (slot === "main") p.swordAng = rot;
+  },
+
+  slash(dir, it, slot) {
     const p = this.p;
-    if (p.cd > 0 || p.dead) return;
-    p.cd = 0.3;
+    if (p.cds[slot] > 0 || p.dead) return;
+    const D = WDEF[it.base];
+    p.cds[slot] = it.cd;
     p.atkT = 0.14;
-    p.swing = -p.swing;
-    p.swingAim = Math.atan2((dir.x + dir.y) * 0.5, dir.x - dir.y);
-    p.swingFrom = p.rest;
-    p.rest = -p.rest;
-    p.swingT = 0.13;
+    if (slot === "main") {
+      p.swing = -p.swing;
+      p.swingAim = Math.atan2((dir.x + dir.y) * 0.5, dir.x - dir.y);
+      p.swingFrom = p.rest;
+      p.rest = -p.rest;
+      p.swingT = 0.13;
+    } else p.offSwingT = 0.13;
     p.kx += dir.x * 1.5;
     p.ky += dir.y * 1.5;
     const sp = iso(p.x + dir.x * 0.45, p.y + dir.y * 0.45),
@@ -257,7 +420,7 @@ export const player = {
     const fx = this.add
       .image(sp.x, sp.y - 5, "slash0")
       .setRotation(ang)
-      .setFlipY(p.swingFrom > 0)
+      .setFlipY(slot === "main" ? p.swingFrom > 0 : false)
       .setDepth(p.x + p.y + dir.x + dir.y + 0.3);
     this.time.delayedCall(60, () => fx.setTexture("slash1"));
     this.time.delayedCall(130, () => fx.destroy());
@@ -267,44 +430,76 @@ export const player = {
           dy = b.y - p.y,
           d = Math.hypot(dx, dy);
         return (
-          d < 1.15 + (b.r || o.r) &&
-          (d < 0.45 || (dx * dir.x + dy * dir.y) / d > 0.35)
+          d < D.reach + (b.r || o.r) &&
+          (d < 0.45 || (dx * dir.x + dy * dir.y) / d > D.arc)
         );
       });
     let any = false;
     for (const e of [...this.enemies])
       if (hitTest(e)) {
         any = true;
-        const crit = Math.random() < 0.12,
-          dmg = (p.atk + ri(0, 2)) * (crit ? 2 : 1),
+        const crit = Math.random() < it.crit,
+          dmg = (p.atk + it.atk + ri(0, 2)) * (crit ? 2 : 1),
           u = norm(e.x - p.x, e.y - p.y);
         this.hurtEnemy(e, dmg, u.x, u.y, crit ? 6 : 4, crit);
+        this.applyElem(e, it.elem, it.edmg, u.x, u.y);
+        const heal = Math.round(dmg * it.leech);
+        if (heal > 0) p.hp = Math.min(p.maxhp, p.hp + heal);
       }
     for (const o of [...this.props])
       if (hitTest(o)) {
         any = true;
         const u = norm(o.x - p.x, o.y - p.y);
-        this.hurtProp(o, p.atk, u.x, u.y);
+        this.hurtProp(o, p.atk + it.atk, u.x, u.y);
       }
     if (any) this.shake(1, 0.08);
   },
 
-  bolt(dir) {
+  useSlot(slot, pressed, held, dir, dt) {
+    const it = this.p.equip[slot];
+    if (!it) return;
+    if ((pressed || held) && WDEF[it.base].back) this.p.useT[slot] = 0.6;
+
+    switch (WDEF[it.base].kind) {
+      case "melee":
+        if (pressed) this.slash(dir, it, slot);
+        break;
+      case "bow":
+        if (pressed) this.shoot(dir, it, slot);
+        break;
+      case "staff":
+        this.cast(it, slot, pressed, held, dir, dt);
+        break;
+      case "shield":
+        if (held) this.p.blocking = true;
+        break;
+    }
+  },
+
+  shoot(dir, it, slot) {
     const p = this.p;
-    if (p.bcd > 0 || p.dead) return;
-    if (p.mp < 2) {
-      this.say("no mp", 0.8);
+    if (p.cds[slot] > 0 || p.dead) return;
+    if (!this.takeStack("arrow")) {
+      this.say("no arrows", 0.8);
       return;
     }
-    p.mp -= 2;
-    p.bcd = 0.35;
-    this.fire(p.x, p.y, dir.x, dir.y, "p", p.atk + 1 + ri(0, 2));
+    p.cds[slot] = it.cd;
+    p.atkT = 0.1;
+    this.fire(p.x, p.y, dir.x, dir.y, "p", p.atk + it.atk + ri(0, 2), {
+      key: "arrow",
+      spd: WDEF.bow.spd,
+      rot: true,
+      col: it.elem ? ELEMENTS[it.elem].col : "w",
+      kb: 2,
+      elem: it.elem,
+      edmg: it.edmg,
+    });
   },
 
   drink() {
     const p = this.p;
     if (p.dead) return;
-    if (p.potions <= 0) {
+    if (this.countOf("potion") <= 0) {
       this.say("no potions", 0.8);
       return;
     }
@@ -312,7 +507,7 @@ export const player = {
       this.say("hp is full", 0.8);
       return;
     }
-    p.potions--;
+    this.takeStack("potion");
     const h = 10 + p.lv * 2;
     p.hp = Math.min(p.maxhp, p.hp + h);
     this.pop(p.x, p.y, 14, "+" + h, "c");

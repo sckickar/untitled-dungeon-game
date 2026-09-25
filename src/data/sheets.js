@@ -88,8 +88,15 @@ export const GORE_SHEETS = {
   },
 };
 
-export const SHEET_GROUPS = { characters: CHAR_SHEETS, gore: GORE_SHEETS };
-export const SHEETS = { ...CHAR_SHEETS, ...GORE_SHEETS };
+export const EFFECT_SHEETS = {
+  fire:  { size: [7, 8], frames: ['fire0', 'fire1'], anims: { fire: { frames: [0, 1], rate: 6 } } },
+  flame: { size: [8, 8], frames: seq('flame', 6), anims: { flame: { frames: [0, 1, 2, 3, 4, 5], rate: 12, repeat: 0 } } },
+  'heal-pentagram': { size: [20, 11], frames: seq('pent', 5), anims: { heal: { frames: [0, 1, 2, 3, 4], rate: 8 } } },
+};
+
+
+export const SHEET_GROUPS = { characters: CHAR_SHEETS, gore: GORE_SHEETS, effects: EFFECT_SHEETS };
+export const SHEETS = { ...CHAR_SHEETS, ...GORE_SHEETS, ...EFFECT_SHEETS };
 
 const FRAME_OF = {};
 for (const [sheet, def] of Object.entries(SHEETS))

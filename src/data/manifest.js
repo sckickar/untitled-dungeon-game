@@ -15,11 +15,37 @@ export const SPRITE_KEYS = [
   "spark",
   "stairs0",
   "stairs1",
-  "sword",
   "torch0",
   "torch1",
   "wall",
   "wall_lo",
+];
+
+export const WEAPON_SPRITE_KEYS = [
+  'sword',
+  'scimitar',
+  'spear',
+  'bow',
+  'shield',
+  'staff',
+  // 'dagger'
+];
+
+// TO BE ADDED!
+export const INVENTORY_ICONS = [
+  'inv_sword',
+  'inv_scimitar',
+  'inv_spear',
+  'inv_bow',
+  'inv_shield',
+  'inv_staff',
+  'inv_arrow'
+];
+
+// these are the 1 frame projectile sprites
+export const PROJECTILE_SPRITES = [
+  'lightning',
+  'arrow',
 ];
 
 export const GIBS = {

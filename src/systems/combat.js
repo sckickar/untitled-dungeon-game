@@ -1,9 +1,13 @@
-import { iso, rnd, ri, pick, norm } from "../core/constants.js";
+import { COL, iso, rnd, ri, pick, norm } from "../core/constants.js";
 import { POOLS, GLV } from "../data/manifest.js";
+import { WDEF } from "../data/items.js";
 
 export const combat = {
-  fire(x, y, ux, uy, owner, dmg) {
-    const spd = owner === "p" ? 8 : 4.2;
+  fire(x, y, ux, uy, owner, dmg, o = {}) {
+    const spd = o.spd ?? (owner === "p" ? 8 : 4.2),
+      spr = this.add.image(0, 0, o.key ?? "orbshot");
+    if (o.rot) spr.setRotation(Math.atan2((ux + uy) * 0.5, ux - uy));
+    if (o.elem) spr.setTintFill(COL[o.col]);
     this.projs.push({
       x: x + ux * 0.3,
       y: y + uy * 0.3,
@@ -13,11 +17,15 @@ export const combat = {
       dmg,
       z: 5,
       life: 2.5,
-      spr: this.add.image(0, 0, owner === "p" ? "bolt" : "orbshot"),
+      spr,
+      col: o.col ?? "m",
+      kb: o.kb ?? 3,
+      elem: o.elem,
+      edmg: o.edmg
     });
   },
 
-  hurtEnemy(e, dmg, ux, uy, kb, crit) {
+  hurtEnemy(e, dmg, ux, uy, kb, crit, col) {
     if (!this.enemies.includes(e)) return;
     e.hp -= dmg;
     e.flash = 0.1;
@@ -31,7 +39,7 @@ export const combat = {
       e.y,
       e.def.z + 12,
       crit ? dmg + "!" : "" + dmg,
-      crit ? "m" : "w",
+      crit ? "m" : col || "w",
     );
     if (e.hp <= 0) this.killEnemy(e, ux, uy);
   },
@@ -40,6 +48,7 @@ export const combat = {
     this.enemies.splice(this.enemies.indexOf(e), 1);
     this.killOutline(e.spr);
     e.spr.destroy();
+    if (e.burnSpr) e.burnSpr.destroy();
     const D = e.def,
       c = D.blood,
       body = this.bodyPts(e);
@@ -90,6 +99,7 @@ export const combat = {
     if (r < 0.5) this.drop("coin", e.x, e.y);
     else if (r < 0.62) this.drop("orb", e.x, e.y);
     else if (r < 0.7) this.drop("potion", e.x, e.y);
+    else if (r < 0.8) this.drop("arrows", e.x, e.y);
     this.hitstop = 0.05;
     this.shake(2, 0.14);
   },
@@ -134,10 +144,15 @@ export const combat = {
         bounce: 0.45,
       });
     }
+    if (o.kind === "crate") {
+      this.dropItem(this.rollItem(), o.x, o.y);
+      return;
+    }
     const r = Math.random();
     if (r < 0.35) this.drop("coin", o.x, o.y);
     else if (r < 0.45) this.drop("potion", o.x, o.y);
     else if (r < 0.55) this.drop("orb", o.x, o.y);
+    else if (r < 0.7) this.drop("arrows", o.x, o.y);
   },
 
   hurtPlayer(d, ux, uy) {
@@ -159,9 +174,12 @@ export const combat = {
       this.stamp("cp_big_m", p.x, p.y);
       this.bloodAdd(p.x, p.y, 5, 2);
       this.stamp("c_player_g" + ri(0, GLV - 1), p.x, p.y);
-      p.sword.setVisible(false);
+      p.hand.main.setVisible(false);
+      p.hand.off.setVisible(false);
+      this.invOpen = false;
       const sp = iso(p.x + ux * 0.6, p.y + uy * 0.6);
-      if (!this.solidAt(p.x + ux * 0.6, p.y + uy * 0.6))
+      if (p.equip.main) this.swordStamp.setTexture(WDEF[p.equip.main.base].spr);
+      if (p.equip.main && !this.solidAt(p.x + ux * 0.6, p.y + uy * 0.6))
         this.rt.draw(
           this.swordStamp.setRotation(rnd(0, 6.283)),
           Math.round(sp.x),
@@ -179,19 +197,19 @@ export const combat = {
   },
 
   updateProjs(dt) {
+    const p = this.p;
     for (let i = this.projs.length - 1; i >= 0; i--) {
       const q = this.projs[i];
       q.life -= dt;
       q.x += q.vx * dt;
       q.y += q.vy * dt;
       let dead = q.life <= 0;
-      const col = q.owner === "p" ? "c" : "m",
-        u = norm(q.vx, q.vy);
+      const u = norm(q.vx, q.vy);
       if (!dead && this.solidAt(q.x, q.y)) {
         dead = true;
         q.x -= u.x * 0.15;
         q.y -= u.y * 0.15;
-        this.spray(q.x, q.y, q.z, -u.x, -u.y, 6, col, 1.2, 2);
+        this.spray(q.x, q.y, q.z, -u.x, -u.y, 6, q.col, 1.2, 2);
       }
       if (!dead && q.owner === "p") {
         for (const e of this.enemies)
@@ -200,7 +218,8 @@ export const combat = {
               (b) => Math.hypot(b.x - q.x, b.y - q.y) < (b.r || e.r) + 0.15,
             )
           ) {
-            this.hurtEnemy(e, q.dmg, u.x, u.y, 3);
+            this.hurtEnemy(e, q.dmg, u.x, u.y, q.kb);
+            this.applyElem(e, q.elem, q.edmg, u.x, u.y);
             dead = true;
             break;
           }
@@ -211,13 +230,15 @@ export const combat = {
               dead = true;
               break;
             }
-      } else if (
-        !dead &&
-        !this.p.dead &&
-        Math.hypot(this.p.x - q.x, this.p.y - q.y) < this.p.r + 0.15
-      ) {
-        this.hurtPlayer(q.dmg, u.x, u.y);
-        dead = true;
+      } else if (!dead && !p.dead) {
+        const d = Math.hypot(p.x - q.x, p.y - q.y);
+        if (d < p.r + 0.4 && this.canBlock(u)) {
+          this.blockHit(q.x, q.y, q.z, u);
+          dead = true;
+        } else if (d < p.r + 0.15) {
+          this.hurtPlayer(q.dmg, u.x, u.y);
+          dead = true;
+        }
       }
       if (dead) {
         q.spr.destroy();
@@ -228,4 +249,83 @@ export const combat = {
       q.spr.setPosition(sp.x, sp.y - q.z).setDepth(q.x + q.y + 0.1);
     }
   },
+
+  canBlock(u) {
+    const p = this.p;
+    return p.blocking && !!p.equip.off && -(u.x * p.face.x + u.y * p.face.y) > 0.35;
+  },
+
+  blockHit(x, y, z, u, cost = 1) {
+    const p = this.p,
+      s = p.equip.off;
+    this.spray(x, y, z, -u.x, -u.y, 6, "w", 1.2, 2);
+    this.pop(p.x, p.y, 14, "block", "c");
+    this.shake(1, 0.08);
+    p.kx += u.x * 1.5;
+    p.ky += u.y * 1.5;
+    s.dur -= cost;
+    if (s.dur <= 0) this.breakShield();
+  },
+
+  breakShield() {
+    const p = this.p;
+    p.equip.off = null;
+    this.refreshHands();
+    this.say("shield broke", 1.2);
+    for (let i = 0; i < 10; i++) {
+      const k = pick(["splint", "splint2", "splint3"]);
+      this.addPart({
+        x: p.x,
+        y: p.y,
+        z: 6,
+        vx: rnd(-2, 2),
+        vy: rnd(-2, 2),
+        vz: rnd(30, 70),
+        key: k,
+        stamp: k,
+        bounce: 0.45,
+      });
+    }
+  },
+    applyElem(e, elem, dmg, ux, uy) {
+    if (!elem || !dmg || !this.enemies.includes(e)) return;
+    if (elem === "fire") {
+      e.burn = { t: 2.5, tick: 0.5, dmg };
+      if (!e.burnSpr)
+        e.burnSpr = this.add.sprite(0, 0, "fire").setOrigin(0.5, 1).play({ key: "fire", startFrame: ri(0, 1) });
+    } else if (elem === "frost") {
+      e.slowT = 2;
+      this.hurtEnemy(e, dmg, ux, uy, 0, false, "c");
+    } else if (elem === "shock") {
+      const ex = e.x, ey = e.y,
+        n = this.enemies.find((o) => o !== e && Math.hypot(o.x - ex, o.y - ey) < 2.5 && this.los(ex, ey, o.x, o.y));
+      this.hurtEnemy(e, dmg, ux, uy, 0, false, "w");
+      if (n) {
+        this.setBeam(this.makeBeam(0.12), ex, ey, n.x, n.y);
+        const u = norm(n.x - ex, n.y - ey);
+        this.hurtEnemy(n, dmg, u.x, u.y, 1, false, "w");
+      }
+    }
+  },
+
+  updateStatus(dt) {
+    for (const e of [...this.enemies]) {
+      if (e.slowT > 0) e.slowT -= dt;
+      if (!e.burn) continue;
+      const sp = iso(e.x, e.y);
+      e.burnSpr.setPosition(sp.x, sp.y - e.def.z).setDepth(e.x + e.y + 0.05);
+      e.burn.t -= dt;
+      e.burn.tick -= dt;
+      if (e.burn.tick <= 0) {
+        e.burn.tick = 0.5;
+        this.hurtEnemy(e, e.burn.dmg, 0, 0, 0, false, "m");
+      }
+      if (e.burn.t <= 0 && this.enemies.includes(e)) {
+        e.burn = null;
+        e.burnSpr.destroy();
+        e.burnSpr = null;
+      }
+    }
+  },
+
 };

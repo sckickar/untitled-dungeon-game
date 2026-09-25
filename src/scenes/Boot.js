@@ -1,4 +1,4 @@
-import { SPRITE_KEYS } from '../data/manifest.js';
+import { SPRITE_KEYS, INVENTORY_ICONS, WEAPON_SPRITE_KEYS, PROJECTILE_SPRITES } from '../data/manifest.js';
 import { SHEETS } from '../data/sheets.js';
 import { buildFonts } from '../gfx/fonts.js';
 import { buildAnimations } from '../gfx/animations.js';
@@ -10,6 +10,9 @@ export class Boot extends Phaser.Scene {
     for (const [key, { size: [frameWidth, frameHeight] }] of Object.entries(SHEETS))
       this.load.spritesheet(key, `assets/sheets/${key}.png`, { frameWidth, frameHeight });
     for (const key of SPRITE_KEYS) this.load.image(key, `assets/sprites/${key}.png`);
+    for (const key of INVENTORY_ICONS) this.load.image(key, `assets/sprites/inv_icons/${key}.png`);
+    for (const key of WEAPON_SPRITE_KEYS) this.load.image(key, `assets/sprites/weapons/${key}.png`);
+    for (const key of PROJECTILE_SPRITES) this.load.image(key, `assets/sprites/${key}.png`);
     this.load.on('loaderror', f => console.error('Missing asset:', f.src));
   }
   create() {

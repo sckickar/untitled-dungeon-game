@@ -25,6 +25,7 @@ export const norm = (x, y) => {
   const l = Math.hypot(x, y) || 1;
   return { x: x / l, y: y / l };
 };
+
 export const others = (c) => "mcw".replace(c, "");
 
 export const smoothDamp = (cur, target, v, k, st, dt) => {
