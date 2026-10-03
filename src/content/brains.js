@@ -16,6 +16,7 @@ import { alive } from "../sim/entity.js";
 import { rnd, dist, norm } from "../lib/math.js";
 import { countOf } from "../sim/items.js";
 import { defs } from "../sim/defs.js";
+import { tickBuried } from "../sim/burial.js";
 
 const AUTO_MANA = 0.04;
 
@@ -110,6 +111,10 @@ export const BRAINS = {
     const intent = melee(world, e, dt);
     if (e.mem.aggro && intent.move) intent.move = weave(e, intent.move);
     return intent;
+  },
+
+  buried(world, e, dt) {
+    return tickBuried(world, e, dt) ?? melee(world, e, dt);
   },
 
   serpent(world, e, dt) {

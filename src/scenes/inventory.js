@@ -5,6 +5,7 @@ import { useStack } from "../sim/actor.js";
 import { drop } from "../sim/loot.js";
 import { hitSlot } from "./layout.js";
 import { isHostile, has, alive } from "../sim/entity.js";
+import { sfx } from "../audio/engine.js";
 
 export function pickAt(scene, ptr) {
   const w = ptr.positionToCamera(scene.cameras.main);
@@ -39,6 +40,7 @@ export function pickMobAt(scene, ptr) {
 
 const note = (scene, why) => {
   if (!why) return;
+  sfx("select", { rate: 0.55 });
   if (scene.invOpen) scene.invNote = { text: why, t: 1.2 };
   else scene.world.say(why, 0.8);
 };
@@ -108,6 +110,7 @@ export function onInvPointerDown(scene, ptr) {
     }
     const [ax, ay] = isGrid(from) ? cellOf(from.i) : [];
     scene.drag = { from, item: it, grab: isGrid(from) ? [hit.cx - ax, hit.cy - ay] : centre(it) };
+    sfx("pickupwep", { vol: 0.5 });
     return true;
   }
   if (!ptr.leftButtonDown()) return false;
@@ -120,6 +123,7 @@ export function onInvPointerDown(scene, ptr) {
     return true;
   }
   setDragging(scene, o, true);
+  sfx("pickupwep", { vol: 0.5 });
   scene.drag = { from: { type: "world", pick: o }, item: o.item, grab: centre(o.item) };
   return true;
 }
@@ -159,6 +163,7 @@ function buyStack(scene, from, it) {
   }
   scene.trade.stock[from.i] = null;
   p.gold -= cost;
+  sfx("coin");
 }
 
 export function placeDrag(scene, target) {
@@ -175,6 +180,7 @@ export function placeDrag(scene, target) {
     if (src.type !== "world" && src.type !== "shop" && !isStack(item)) {
       take(scene, src);
       drop(world, "item", p.x, p.y, item).gift = true;
+      sfx("dropitem");
     }
     return;
   }
@@ -200,6 +206,7 @@ export function move(scene, src, item, to) {
     return why;
   }
   p.gold += gain - cost;
+  sfx(buying || selling ? "coin" : "placeitem");
   if (src.type === "world") {
     world.remove(src.pick);
     world.sweep();

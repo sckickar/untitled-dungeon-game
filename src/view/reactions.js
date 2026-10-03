@@ -190,6 +190,11 @@ export function bindReactions(view) {
   on("impact", ({ x, y, z, dir, color }) => gore.spray(x, y, z, dir.x, dir.y, 6, color, 1.2, 2));
   on("shatter", ({ x, y, z, dir }) => gore.debris(x, y, z, -dir.x, -dir.y, ["shard", "shard2", "shard3", "splint"], 5, false));
   on("boom", () => view.camera.shake(2, 0.15));
+  on("emerge", ({ actor: a }) => {
+    gore.debris(a.x, a.y, 1, 0, 0, ["shard", "shard2", "shard3"], 7, true);
+    gore.spray(a.x, a.y, 1, 0, 0, 5, a.def.look.blood || "c", 3.14, 1.2);
+    view.camera.shake(1.5, 0.2);
+  });
   on("bossArrived", () => view.camera.shake(4, 0.5));
   on("bossState", ({ state }) => state === "dying" && view.camera.shake(3, 1));
   on("victory", () => view.camera.shake(4, 1.2));

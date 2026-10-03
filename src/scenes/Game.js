@@ -15,6 +15,8 @@ import {
 import { signAt } from "../content/tutorial.js";
 import { dist } from "../lib/math.js";
 import { alive } from "../sim/entity.js";
+import { bindGameAudio } from "../audio/director.js";
+import { sfx } from "../audio/engine.js";
 
 export class Game extends Phaser.Scene {
   constructor() {
@@ -59,6 +61,7 @@ export class Game extends Phaser.Scene {
     this.world = new World({ depth: this.depth });
     generateLevel(this.world, { carry: this.carry });
     this.view = new WorldView(this, this.world);
+    bindGameAudio(this);
     this.world.on("death", ({ target }) => {
       if (target !== this.world.player) return;
       this.invOpen = false;
@@ -98,14 +101,19 @@ export class Game extends Phaser.Scene {
       const npc = talkTarget(world);
       if (npc) {
         this.talk = openTalk(world, npc);
+        sfx("select2");
         this.touchE = false;
         return view.camera.update(dt, this.camTarget(dt));
       }
     }
     this.touchE = false;
-    if (!p.dead && (JD(this.keys.I) || JD(this.keys.TAB) || this.touchI))
+    if (!p.dead && (JD(this.keys.I) || JD(this.keys.TAB) || this.touchI)) {
       this.invOpen = !this.invOpen;
-    else if (this.invOpen && JD(this.keys.ESC)) this.invOpen = false;
+      sfx("select", { rate: this.invOpen ? 1 : 0.85 });
+    } else if (this.invOpen && JD(this.keys.ESC)) {
+      this.invOpen = false;
+      sfx("select", { rate: 0.85 });
+    }
     this.touchI = false;
     const t = this.trade;
     if (t && (!canTalk(t) || dist(t, p) > TALK_RANGE + 0.5)) this.invOpen = false;
@@ -172,10 +180,14 @@ export class Game extends Phaser.Scene {
       n = t.options.length;
     if (!canTalk(t.npc) || dist(t.npc, this.world.player) > TALK_RANGE + 0.5)
       return (this.talk = null);
-    if (JD(k.ESC) || JD(k.E) || JD(k.X) || JD(k.K) || JD(k.I) || JD(k.TAB))
+    if (JD(k.ESC) || JD(k.E) || JD(k.X) || JD(k.K) || JD(k.I) || JD(k.TAB)) {
+      sfx("select", { rate: 0.85 });
       return (this.talk = null);
+    }
+    const was = t.sel;
     if (JD(k.W) || JD(k.UP)) t.sel = (t.sel + n - 1) % n;
     if (JD(k.S) || JD(k.DOWN)) t.sel = (t.sel + 1) % n;
+    if (t.sel !== was) sfx("select");
     const num = [k.ONE, k.TWO, k.THREE, k.FOUR].findIndex((key) => JD(key));
     if (num >= 0 && num < n) return this.talkPick(num);
     if (JD(k.Z) || JD(k.J) || JD(k.SPACE) || JD(k.ENTER)) this.talkPick(t.sel);
@@ -185,6 +197,7 @@ export class Game extends Phaser.Scene {
     const t = this.talk;
     if (!t || !t.options[i]) return;
     t.sel = i;
+    sfx("select2");
     this.talk = chooseTalk(this.world, t, t.options[i].id);
     if (this.talk?.trade) {
       this.trade = this.talk.npc;
@@ -202,6 +215,7 @@ export class Game extends Phaser.Scene {
   restartGame() {
     if (this.restarting) return;
     this.restarting = true;
+    sfx("select2");
     this.scene.restart({ depth: 0 });
   }
 

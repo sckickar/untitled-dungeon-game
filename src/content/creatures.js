@@ -407,6 +407,41 @@ export const CREATURES = {
     },
   }),
 
+  rotcorpse: monster({
+    name: "rotting corpse",
+    hp: 11,
+    atk: 3,
+    spd: 1.55,
+    xp: 5,
+    r: 0.28,
+    wind: 0.32,
+    mass: 1,
+    tags: ["undead"],
+    brain: "buried",
+    equip: { main: "bite" },
+    onStrike(world, e, t) {
+      applyStatus(world, t, "poisoned", { dmg: 1, duration: 2.5, source: e });
+    },
+    onDeath(world, e) {
+      for (const t of world.entities)
+        if (t !== e && alive(t) && has(t, "creature") && dist(t, e) < 1)
+          applyStatus(world, t, "poisoned", { dmg: 1, duration: 2.5, source: e });
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * 6.283 + rnd(-0.3, 0.3),
+          s = rnd(1.5, 3);
+        world.spawn("poisonflame", e.x, e.y, { source: e, vx: Math.cos(a) * s, vy: Math.sin(a) * s, dmg: 1 });
+      }
+    },
+    look: {
+      sprite: "rottingcorpse",
+      anims: { front: "rottingcorpse_f", back: "rottingcorpse_b" },
+      outline: "m",
+      blood: "c",
+      gibs: 6,
+      spray: 14,
+    },
+  }),
+
   hexer: monster({
     hp: 10,
     atk: 3,

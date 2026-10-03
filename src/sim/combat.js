@@ -68,6 +68,7 @@ export function strike(world, attacker, target, hit) {
   if (hit.elem && alive(target)) defs.elements[hit.elem].onHit(world, attacker, target, hit);
   const item = hit.item;
   applyEffects(world, attacker, target, item, hit);
+  if (dealt > 0 && alive(target)) attacker?.def?.onStrike?.(world, attacker, target, hit);
   if (item?.leech && attacker) heal(world, attacker, Math.round(hit.amount * item.leech), { cause: "leech", quiet: true });
   defs.prefixes[item?.prefix]?.onHit?.(world, attacker, target, hit);
   world.emit("hit", { attacker, target, ...hit, dealt });

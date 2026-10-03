@@ -143,7 +143,9 @@ export function useStack(world, a, base) {
     if (a === world.player) world.say("no " + (S.name ?? base) + "s", 0.8);
     return;
   }
-  if (S.use(world, a) !== false) takeStack(a, base);
+  if (S.use(world, a) === false) return;
+  takeStack(a, base);
+  world.emit("used", { actor: a, base });
 }
 
 function followSegments(world, e) {

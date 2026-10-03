@@ -57,6 +57,7 @@ export const BIOMES = biomes({
       pillarChance: 0.7,
       alcoves: [1, 3],
     },
+    traps: { chance: 0.4, type: "rotcorpse", count: [2, 4] },
   },
   flesh: {
     when: (world) => world.depth > LAIR_DEPTHS[1] && !lairAt(world),

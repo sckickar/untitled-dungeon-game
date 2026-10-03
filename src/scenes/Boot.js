@@ -7,6 +7,7 @@ import { PAPERDOLL_SHEETS } from '../view/assets/paperdoll.js';
 import { defs } from '../sim/defs.js';
 import { BIOME_SPRITES } from '../content/biomes.js';
 import { VW, VH } from '../config.js';
+import { preloadAudio, initAudio } from '../audio/engine.js';
 
 const BAR = { x: 8, y: 18, w: 44, h: 3 };
 
@@ -32,6 +33,7 @@ export class Boot extends Phaser.Scene {
     }
     for (const key of WEAPON_SPRITE_KEYS) this.load.image(key, `assets/sprites/weapons/${key}.png`);
     for (const key of PROJECTILE_SPRITES) this.load.image(key, `assets/sprites/${key}.png`);
+    preloadAudio(this);
     this.load.on('loaderror', f => console.error('Missing asset:', f.src));
   }
   drawLoader() {
@@ -55,6 +57,7 @@ export class Boot extends Phaser.Scene {
     buildFonts(this);
     buildAnimations(this);
     buildManual(this);
+    initAudio(this.game);
     this.scene.start('title');
   }
 }

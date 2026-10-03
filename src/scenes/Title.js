@@ -5,6 +5,7 @@ import { terrainIndex } from "../sim/defs.js";
 import { alive, has } from "../sim/entity.js";
 import { WorldView } from "../view/WorldView.js";
 import { txt } from "../view/assets/fonts.js";
+import { sfx, music, setListener } from "../audio/engine.js";
 
 const ARENA = { x: 18, y: 18, w: 8, h: 8 },
   DEPTH = 3,
@@ -28,6 +29,8 @@ export class Title extends Phaser.Scene {
       return this.scene.start("game", { depth: floor });
     }
     this.cameras.main.setBackgroundColor("#000000");
+    setListener(null);
+    music("title", 1.5);
     this.hitstop = 0;
     this.waveT = 0.6;
     this.hireT = HIRE_GAP;
@@ -50,6 +53,7 @@ export class Title extends Phaser.Scene {
     const start = () => {
       if (this.started) return;
       this.started = true;
+      sfx("select2");
       this.scene.start("game", { depth: 0 });
     };
     this.input.keyboard.on("keydown", (e) => {

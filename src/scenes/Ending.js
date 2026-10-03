@@ -1,6 +1,7 @@
 import { VW, VH } from "../config.js";
 import { txt } from "../view/assets/fonts.js";
 import { chronicle } from "../content/chronicle.js";
+import { sfx, music, setListener } from "../audio/engine.js";
 
 const AFTER = "https://cyberspace.online/sajuuk/take-a-break-yall-deserve-it-gang-d";
 
@@ -29,6 +30,8 @@ export class Ending extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor("#000000");
+    setListener(null);
+    music("title", 3);
     this.pages = chronicle(this.stats);
     this.measure = txt(this, 0, 0, "", "w").setVisible(false);
     this.lines = [];
@@ -36,6 +39,7 @@ export class Ending extends Phaser.Scene {
     this.next();
     const advance = () => {
       if (this.leaving) return;
+      sfx("select");
       if (this.shown < this.total) this.shown = this.total;
       else this.next();
     };

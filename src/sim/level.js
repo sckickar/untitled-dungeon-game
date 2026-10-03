@@ -2,6 +2,7 @@ import { MW, MH } from "../config.js";
 import { ri, rnd, pick, clamp } from "../lib/math.js";
 import { defs, terrainIndex } from "./defs.js";
 import { bfs } from "./nav.js";
+import { bury } from "./burial.js";
 
 export function generateLevel(world, { carry = null } = {}) {
   world.run = carry?.run ?? {};
@@ -17,6 +18,7 @@ export function generateLevel(world, { carry = null } = {}) {
   const r0 = world.rooms[0];
   world.player = world.spawn("player", r0.cx + 0.5, r0.cy + 0.5, { carry });
   populate(world);
+  if (B.traps) layTraps(world, B.traps);
   const sr = world.stairRoom;
   world.spawn("stairs", sr.cx + 0.5, sr.cy + 0.5);
   world.emit("levelGenerated");
@@ -313,6 +315,50 @@ function populate(world) {
     }
     placeProps(r, ri(0, 3));
   });
+}
+
+export function corridors(world) {
+  const inRoom = new Uint8Array(MW * MH),
+    seen = new Uint8Array(MW * MH),
+    out = [];
+  for (const r of world.rooms)
+    for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) inRoom[y * MW + x] = 1;
+  for (let i = 0; i < MW * MH; i++) {
+    if (seen[i] || inRoom[i] || world.solid(i % MW, (i / MW) | 0)) continue;
+    const tiles = [i];
+    seen[i] = 1;
+    for (let k = 0; k < tiles.length; k++) {
+      const x = tiles[k] % MW,
+        y = (tiles[k] / MW) | 0;
+      for (const [dx, dy] of DIRS4) {
+        const j = (y + dy) * MW + x + dx;
+        if (seen[j] || inRoom[j] || world.solid(x + dx, y + dy)) continue;
+        seen[j] = 1;
+        tiles.push(j);
+      }
+    }
+    out.push(tiles);
+  }
+  return out;
+}
+
+const TRAP_MIN_TILES = 8,
+  TRAP_SAFE_DIST = 6;
+
+export function layTraps(world, T) {
+  const p = world.player;
+  world.traps = [];
+  for (const tiles of corridors(world)) {
+    if (tiles.length < TRAP_MIN_TILES || Math.random() >= T.chance) continue;
+    if (tiles.some((i) => Math.hypot((i % MW) + 0.5 - p.x, ((i / MW) | 0) + 0.5 - p.y) < TRAP_SAFE_DIST)) continue;
+    const trap = { tiles: new Set(tiles), mobs: [], sprung: false },
+      pool = [...tiles];
+    for (let n = Math.min(ri(...T.count), Math.floor(tiles.length / 4)); n > 0; n--) {
+      const i = pool.splice(ri(0, pool.length - 1), 1)[0];
+      bury(world.spawn(T.type, (i % MW) + rnd(0.3, 0.7), ((i / MW) | 0) + rnd(0.3, 0.7)), trap);
+    }
+    world.traps.push(trap);
+  }
 }
 
 export function wallProps(world) {

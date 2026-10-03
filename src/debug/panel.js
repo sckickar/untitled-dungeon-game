@@ -6,6 +6,7 @@ import { gainXP } from "../sim/progression.js";
 import { makeItem } from "../sim/items.js";
 import { drop } from "../sim/loot.js";
 import { LAIR_DEPTHS } from "../content/bosses/lair.js";
+import { spring } from "../sim/burial.js";
 
 const IMGUI = "https://cdn.jsdelivr.net/npm/@mori2003/jsimgui@0.14.0/build/imgui.js";
 const TOGGLE = "`";
@@ -49,6 +50,7 @@ const S = {
   monster: [0],
   count: [1],
   weapon: [0],
+  trapChance: [defs.biomes.soul?.traps?.chance ?? 0],
 };
 
 const gameScene = () => {
@@ -105,6 +107,20 @@ function runTab(gs) {
   if (order) {
     ImGui.SameLine();
     if (ImGui.SmallButton("swap")) order.reverse();
+  }
+
+  ImGui.SeparatorText("traps");
+  const T = defs.biomes.soul?.traps;
+  if (T) {
+    ImGui.SliderFloat("soul corridor trap chance", S.trapChance, 0, 1, "%.2f");
+    ImGui.SetItemTooltip("chance each soul-biome corridor hides rotting corpses; applies to the next floor generated");
+    T.chance = S.trapChance[0];
+  }
+  const traps = w.traps ?? [];
+  text(`trapped corridors here: ${traps.length} (${traps.filter((t) => t.sprung).length} sprung, ${traps.reduce((n, t) => n + t.mobs.filter((m) => m.buried).length, 0)} still buried)`);
+  if (traps.length) {
+    ImGui.SameLine();
+    if (ImGui.SmallButton("spring all")) for (const t of traps) spring(w, t);
   }
 
   ImGui.SeparatorText("world");

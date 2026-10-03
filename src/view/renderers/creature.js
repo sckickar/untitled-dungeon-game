@@ -2,7 +2,19 @@ import { iso } from "../../lib/iso.js";
 import { ri } from "../../lib/math.js";
 import { addOutline, syncOutline, killOutline, tintOutline } from "../outline.js";
 import { syncOverlays, destroyOverlays, tintFor, applyTint } from "./common.js";
-import { createHands, drawHands, destroyHands, swingHands } from "./hands.js";
+import { createHands, drawHands, destroyHands, swingHands, hideHands } from "./hands.js";
+
+function rise(spr, k) {
+  const parts = [spr, ...(spr.outline || [])];
+  if (k >= 1) {
+    for (const s of parts) if (s.isCropped) s.setCrop();
+    return;
+  }
+  const h = spr.frame.height,
+    keep = Math.max(1, Math.round(h * k)),
+    jit = Math.round((Math.random() - 0.5) * 2 * (1 - k));
+  for (const s of parts) s.setPosition(s.x + jit, s.y + h - keep).setCrop(0, 0, spr.frame.width, keep);
+}
 
 export const creature = {
   create(view, e) {
@@ -33,7 +45,12 @@ export const creature = {
       spr = rec.spr,
       sp = iso(e.x, e.y),
       z = L.z ? L.z + Math.round(Math.sin(e.t * 5)) : 0;
-    spr.setPosition(sp.x, sp.y - z).setDepth(e.x + e.y);
+    spr.setVisible(!e.buried).setPosition(sp.x, sp.y - z).setDepth(e.x + e.y);
+    if (e.buried) {
+      syncOutline(spr);
+      hideHands(rec);
+      return;
+    }
     const sx =
       L.faceFlip && Math.hypot(e.moveX, e.moveY) < 0.01 ? e.face.x - e.face.y : e.moveX - e.moveY;
     if (Math.abs(sx) > 0.05) spr.setFlipX(sx < 0);
@@ -48,6 +65,7 @@ export const creature = {
     const tint = tintFor(e);
     applyTint(spr, tint);
     syncOutline(spr);
+    rise(spr, e.rise ?? 1);
     const hot = e === view.hoverMob;
     if (hot !== rec.hot) {
       rec.hot = hot;

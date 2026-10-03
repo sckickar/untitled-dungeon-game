@@ -78,6 +78,14 @@ export const CHAR_SHEETS = {
       skel2_b: { frames: [2, 3], rate: 6 },
     },
   },
+  rottingcorpse: {
+    size: [8, 8],
+    frames: seq("rc", 4),
+    anims: {
+      rottingcorpse_f: { frames: [0, 1], rate: 5 },
+      rottingcorpse_b: { frames: [2, 3], rate: 5 },
+    },
+  },
   necromancer: {
     size: [8, 8],
     frames: seq("nc", 4),
