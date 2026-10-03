@@ -1,0 +1,6 @@
+vault/.obsidian/workspace*.json
+vault/.obsidian/cache
+.DS_Store
+
+node_modules/
+dist/

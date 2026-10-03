@@ -1,0 +1,14 @@
+{
+  "name": "untitled-dungeon-game",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "test": "node --test \"tests/*.test.js\"",
+    "build": "node scripts/build.js",
+    "preview": "python3 -m http.server 8001 -d dist"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}
