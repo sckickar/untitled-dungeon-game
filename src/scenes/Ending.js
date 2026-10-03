@@ -3,7 +3,8 @@ import { txt } from "../view/assets/fonts.js";
 import { chronicle } from "../content/chronicle.js";
 import { sfx, music, setListener } from "../audio/engine.js";
 
-const AFTER = "https://cyberspace.online/sajuuk/take-a-break-yall-deserve-it-gang-d";
+const AFTER =
+  "https://cyberspace.online/sajuuk/take-a-break-yall-deserve-it-gang-d";
 
 const W = VW - 12,
   LINE = 9,
@@ -44,9 +45,18 @@ export class Ending extends Phaser.Scene {
       else this.next();
     };
     this.input.keyboard.on("keydown", (e) => {
-      if (["z", "Z", " ", "Enter", "j", "J", "x", "X"].includes(e.key)) advance();
+      if (["z", "Z", " ", "Enter", "j", "J", "x", "X"].includes(e.key))
+        advance();
     });
     this.input.on("pointerdown", advance);
+    const touch = this.sys.game.device.input.touch;
+    this.prompt = txt(this, 0, VH - 14, touch ? "tap to continue" : "press z or click to continue", "w").setVisible(false);
+    this.prompt.x = Math.round((VW - this.prompt.width) / 2);
+    this.time.addEvent({
+      delay: 420,
+      loop: true,
+      callback: () => this.prompt.setVisible(this.ready && !this.prompt.visible),
+    });
   }
 
   wrap(s) {
@@ -68,6 +78,9 @@ export class Ending extends Phaser.Scene {
     this.lines = [];
     this.page++;
     this.wait = 0;
+    // the last page waits for a click/key: leaving navigates the top window, which browsers only allow from user input
+    this.last = this.page === this.pages.length - 1;
+    this.ready = false;
     if (this.page >= this.pages.length) return this.leave();
     const rows = [];
     for (const l of this.pages[this.page]) {
@@ -102,12 +115,19 @@ export class Ending extends Phaser.Scene {
       if (t.text.length !== n) t.setText(t.full.slice(0, n));
       left -= n;
     }
-    if (this.shown >= this.total && (this.wait += dt) > HOLD) this.next();
+    if (this.shown < this.total) return;
+    if (this.last) this.ready = true;
+    else if ((this.wait += dt) > HOLD) this.next();
   }
 
   leave() {
     if (this.leaving) return;
     this.leaving = true;
-    window.location.href = AFTER;
+    this.prompt.setVisible(false);
+    try {
+      window.top.location.href = AFTER; // navigate the whole tab, not just the iframe
+    } catch {
+      window.open(AFTER, "_blank"); // fallback if top navigation is blocked
+    }
   }
 }
